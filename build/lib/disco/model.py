@@ -103,7 +103,8 @@ class CrystalGraphConvNet(nn.Module):
     predicting material properties (in this case, convergence)
     """
     def __init__(self, orig_atom_fea_len, nbr_fea_len,
-                 atom_fea_len=64, n_conv=3, h_fea_len=128, n_h=1):
+                 atom_fea_len=64, n_conv=3, h_fea_len=128, n_h=1,
+                 classification=False):
         """
         Initialize CrystalGraphConvNet.
 
@@ -124,6 +125,7 @@ class CrystalGraphConvNet(nn.Module):
           Number of hidden layers after pooling
         """
         super(CrystalGraphConvNet, self).__init__()
+        self.classification = classification
         
         # node-level embedder that brings raw inputs into same dimensionality for
         # convolution layer
@@ -149,8 +151,16 @@ class CrystalGraphConvNet(nn.Module):
             self.softpluses = nn.ModuleList([nn.Softplus()
                                              for _ in range(n_h - 1)])
             
-        # Finish processing the input with regression
-        self.fc_out = nn.Linear(h_fea_len, 1)
+        # Finish processing the input with classification or regression
+        if self.classification:
+            self.fc_out = nn.Linear(h_fea_len, 2)
+        
+        else:
+            self.fc_out = nn.Linear(h_fea_len, 1)
+        
+        if self.classification:
+            self.logsoftmax = nn.LogSoftmax(dim=1)
+            self.dropout = nn.Dropout()
 
     def forward(self, atom_fea, nbr_fea, nbr_fea_idx, crystal_atom_idx):
         """
@@ -195,12 +205,18 @@ class CrystalGraphConvNet(nn.Module):
         crys_fea = self.conv_to_fc(self.conv_to_fc_softplus(crys_fea))
         crys_fea = self.conv_to_fc_softplus(crys_fea)
 
+        # Optional dropout for classication only
+        if self.classification:
+            crys_fea = self.dropout(crys_fea)
 
         if hasattr(self, 'fcs') and hasattr(self, 'softpluses'):
             for fc, softplus in zip(self.fcs, self.softpluses):
                 crys_fea = softplus(fc(crys_fea))
 
         out = self.fc_out(crys_fea)
+
+        if self.classification:
+            out = self.logsoftmax(out)
 
         return out
     
@@ -234,7 +250,8 @@ class ConvergenceRegressor(CrystalGraphConvNet):
                 nbr_fea_len,
                 atom_fea_len, n_conv, 
                 h_fea_len,
-                n_h):
+                n_h, 
+                classification=False):
     
         # Build as a regressor 
         super().__init__(orig_atom_fea_len, 
@@ -242,7 +259,8 @@ class ConvergenceRegressor(CrystalGraphConvNet):
                          atom_fea_len,
                          n_conv,
                          h_fea_len,
-                         n_h)
+                         n_h,
+                         classification)
         
         # Override the output to be 3 dim per atom. Pooling step unnecessary
         self.fc_out = nn.Linear(h_fea_len, 3)

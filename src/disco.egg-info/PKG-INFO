@@ -1,0 +1,23 @@
+Metadata-Version: 2.4
+Name: disco
+Version: 0.0.1
+Summary: Move Your Atoms into Place!
+Home-page: https://github.com/isaac-perez7053/disco
+Author: Thomas Wing
+Author-email: Isaac Perez <iperez@g.hmc.edu>
+License: MIT
+Project-URL: Homepage, https://github.com/isaac-perez7053/disco
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Physics
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: ase
+Requires-Dist: torch>=2.0
+Requires-Dist: torch_geometric>=2.4
+Requires-Dist: numpy
+Provides-Extra: dev
+Requires-Dist: black>=22.3; extra == "dev"
