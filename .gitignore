@@ -12,4 +12,4 @@ __pycache__/
 *.log
 *.bak
 *.cif
-# id_prop.csv
+id_prop.csv
