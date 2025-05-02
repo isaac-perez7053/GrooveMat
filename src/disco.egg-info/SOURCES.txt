@@ -3,7 +3,7 @@ pyproject.toml
 setup.cfg
 src/disco/__init__.py
 src/disco/data.py
-src/disco/m3gnet_classifier.py
+src/disco/m3gnet_loss.py
 src/disco/model.py
 src/disco/to_implement.py
 src/disco.egg-info/PKG-INFO
