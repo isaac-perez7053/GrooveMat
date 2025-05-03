@@ -21,7 +21,7 @@ num_samples = args.n  # Limit the number of results to fetch
 search_kwargs = dict(
     formula="ABO3",
     crystal_system="Cubic",
-    fields=["material_id", "formula_pretty", "structure", "energy_per_atom"],
+    fields=["material_id", "formula_pretty", "structure", "energy_per_atom", "nsites"],
 )
 
 if num_samples:
@@ -44,16 +44,13 @@ with MPRester(API_KEY) as mpr:
             mp_id = entry.material_id
             structure = entry.structure
             energy = entry.energy_per_atom
-
-            # structure = mpr.get_structure_by_material_id(mp_id)
-            # entry = mpr.get_entry_by_material_id(mp_id)
-            # energy = entry.energy_per_atom
+            nsites = entry.nsites
 
             cif_path = os.path.join(STRUCTURE_DIR, f"{mp_id}.cif")
             structure.to(fmt="cif", filename=cif_path)
 
-            id_prop_rows.append((mp_id, energy))
-            print(f"Saved {mp_id}.cif with energy {energy:.4f}")
+            id_prop_rows.append((mp_id, energy, nsites))
+            print(f"Saved {mp_id}.cif with energy {energy:.4f} and nsites {nsites}")
 
         except Exception as e:
             print(f"Failed to fetch {mp_id}: {e}")
