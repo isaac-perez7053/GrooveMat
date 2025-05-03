@@ -3,12 +3,11 @@ import csv
 import argparse
 from mp_api.client import MPRester
 
-# === ARGUMENTS === 
 parser = argparse.ArgumentParser(description="Generate dataset from Materials Project")
 parser.add_argument("--n", type=int, help="Number of structures to fetch")
 args = parser.parse_args()
 
-# === CONFIGURATION ===
+# Configuration
 API_KEY = "jqiPpuSEWUeahM0ZyBKtX7jT7HYKxSEs" # Materials Project API key
 OUTPUT_DIR = "data"
 STRUCTURE_DIR = os.path.join(OUTPUT_DIR, "structures")
@@ -31,10 +30,10 @@ if num_samples:
         "num_chunks": 1,
     })
 
-# === MAKE DIRECTORIES ===
+# Make directories
 os.makedirs(STRUCTURE_DIR, exist_ok=True)
 
-# === FETCH DATA ===
+# Fetch data
 id_prop_rows = []
 
 with MPRester(API_KEY) as mpr:
@@ -59,11 +58,11 @@ with MPRester(API_KEY) as mpr:
         except Exception as e:
             print(f"Failed to fetch {mp_id}: {e}")
 
-# === WRITE CSV ===
+# Write CSV
 with open(CSV_PATH, "w", newline="") as f:
     writer = csv.writer(f)
     writer.writerow(["id", "property"])
     writer.writerows(id_prop_rows)
 
-print(f"\n✅ Done! CIFs in: {STRUCTURE_DIR}")
+print(f"\n Done! CIFs in: {STRUCTURE_DIR}")
 print(f"CSV saved at: {CSV_PATH}")

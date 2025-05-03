@@ -11,11 +11,14 @@ import torch
 import torch.optim as optim
 from sklearn import metrics
 from torch.optim.lr_scheduler import MultiStepLR
+import torch.nn as nn
+import matplotlib.pyplot as plt
 
 from disco.data import CIFData
 from disco.data import collate_pool, get_train_val_test_loader
 from disco.model import ConvergenceRegressor
-from disco.m3gnet_loss import M3gnetLoss
+from disco.matgl_loss import MatGLLoss
+from disco.utils.normalizer import Normalizer
 
 parser = argparse.ArgumentParser(description='Crystal Graph Convolutional Neural Networks')
 
@@ -99,34 +102,14 @@ parser.add_argument('--n-conv', default=3, type=int, metavar='N',
 parser.add_argument('--n-h', default=1, type=int, metavar='N',
                     help='number of hidden layers after pooling')
 
+parser.add_argument('--perturb-std',  type=float, default=0.01,
+                    help='standard deviation for random displacement (Å)')
+
 args = parser.parse_args(sys.argv[1:])
 
 args.cuda = not args.disable_cuda and torch.cuda.is_available()
 
 best_m3g_error = 1e10
-
-class Normalizer(object):
-    """Normalize a Tensor and restore it later. """
-
-    def __init__(self, tensor):
-        """tensor is taken as a sample to calculate the mean and std"""
-        self.mean = torch.mean(tensor)
-        self.std = torch.std(tensor)
-
-    def norm(self, tensor):
-        return (tensor - self.mean) / self.std
-
-    def denorm(self, normed_tensor):
-        return normed_tensor * self.std + self.mean
-
-    def state_dict(self):
-        return {'mean': self.mean,
-                'std': self.std}
-
-    def load_state_dict(self, state_dict):
-        self.mean = state_dict['mean']
-        self.std = state_dict['std']
-
 
 def main():
     global args, best_m3g_error
@@ -166,18 +149,22 @@ def main():
     nbr_fea_len = structures[1].shape[-1]
     
     # after you compute orig_atom_fea_len, nbr_fea_len:
+    device = torch.device("cuda" if args.cuda else "cpu")
+
     model = ConvergenceRegressor(
         orig_atom_fea_len, nbr_fea_len,
         atom_fea_len=args.atom_fea_len,
         n_conv=args.n_conv,
         h_fea_len=args.h_fea_len,
-        n_h=args.n_h)
+        n_h=args.n_h
+    ).to(device)
 
     if args.cuda:
         model.cuda()
 
     # Grab the loss function
-    criterion = M3gnetLoss()
+    loss_fn = MatGLLoss(model_name="M3GNet-MP-2021.2.8-PES")
+    criterion = nn.MSELoss()
 
     # Choose optimizer
     if args.optim == 'SGD':
@@ -210,14 +197,36 @@ def main():
     # Initialize scheduler, in charge of updating the learning rate
     scheduler = MultiStepLR(optimizer, milestones=args.lr_milestones,
                             gamma=0.1)
+    
+    train_losses = []
+    val_losses = []
+    train_maes = []
+    val_mae_losses = []
 
     for epoch in range(args.start_epoch, args.epochs):
 
         # Train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, normalizer) 
+        train_loss, train_mae = train(
+            normalizer,    # your Normalizer
+            train_loader,  # the DataLoader
+            model,         # your model (already on device)
+            loss_fn,       # the MatGLLoss instance
+            criterion,     # the pointwise loss (MSELoss)
+            optimizer,     # the optimizer
+            device,        # the torch.device
+            epoch          # current epoch index
+        )
 
         # evaluate on validation set
-        m3g_error = validate(val_loader, model, criterion, normalizer)
+        m3g_error, mae_val_error = validate(val_loader, model, 
+                             criterion,
+                             normalizer, 
+                             device)
+        
+        train_losses.append(train_loss)
+        train_maes.append(train_mae)
+        val_losses.append(m3g_error)
+        val_mae_losses.append(mae_val_error)
 
         if m3g_error != m3g_error:
             print('Exit due to NaN')
@@ -237,53 +246,99 @@ def main():
             'args': vars(args)
         }, is_best)
 
-    # Test best model 
+
     print('---------Evaluate Model on Test Set---------------')
     best_checkpoint = torch.load('model_best.pth.tar')
     model.load_state_dict(best_checkpoint['state_dict'])
-    validate(test_loader, model, criterion, normalizer, test=True)
+    validate(test_loader, model, criterion, normalizer, device, test=True)
+        # Test best model 
+    plt.figure()
+    plt.plot(range(1, args.epochs+1), train_maes,      label='Train MAE (Å)')
+    plt.plot(range(1, args.epochs+1), val_mae_losses,  label='Val MAE   (Å)')
+    plt.xlabel('Epoch')
+    plt.ylabel('MAE (Å)')
+    plt.title('Training & Validation MAE')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('mae_vs_epoch.png', dpi=300)
 
 
-def train(normalizer: Normalizer, train_loader, model, criterion: M3gnetLoss, optimizer: torch.optim, epoch: int):
+def train(normalizer: Normalizer,
+          train_loader,
+          model: nn.Module,
+          loss_fn: MatGLLoss,
+          criterion: nn.Module,
+          optimizer: torch.optim.Optimizer,
+          device: torch.device,
+          epoch: int):
     model.train()
-    for i, (inputs, dr_true) in enumerate(train_loader):
-        atom_fea , nbr_fea, nbr_idx, _ = inputs
-        atom_fea: torch.Tensor = atom_fea
 
-        # move to device
-        # atom_fea = atom_fea.to(device)
-        # nbr_fea  = nbr_fea.to(device)
-        # nbr_idx  = nbr_idx.to(device)
-        # dr_true  = dr_true.to(device)
+    train_meter = AverageMeter()
+    mae_meter = AverageMeter()
 
-        # normalize the ground-truth displacements
-        dr_true_n = normalizer.norm(dr_true)
+    for i, (inputs, dr_true, batch_struct) in enumerate(train_loader):
+        atom_fea, nbr_fea, nbr_idx, crystal_atom_idx = inputs
+        atom_fea = atom_fea.to(device)
+        nbr_fea  = nbr_fea.to(device)
+        nbr_idx  = nbr_idx.to(device)
 
-        # forward + loss (in normalized space)
+        # forward over the full batch → (N_total, 3)
         pred_dr_n = model(atom_fea, nbr_fea, nbr_idx)
 
-        # Use the m3gnet loss function
-        loss = criterion(pred_dr_n, dr_true_n)
+        # accumulate MatGL loss per crystal
+        total_loss = 0.0
+        for idx_map, struct_relaxed in zip(crystal_atom_idx, batch_struct):
+            # extract this crystal’s atom predictions
+            pred_i = pred_dr_n[idx_map]            # (n_i, 3)
+            x_flat = pred_i.view(-1)               # (3*n_i,)
+
+            # use the perturbed Structure returned by collate_pool
+            total_loss += loss_fn(x_flat, struct_relaxed, classifier=criterion)
+
+        # average over the batch
+        loss = total_loss / len(batch_struct)
+
+        train_meter.update(loss.item(), len(batch_struct))
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-        # for logging, denormalize and measure error in angstroms
+
+
+
         with torch.no_grad():
-            pred_dr = normalizer.denorm(pred_dr_n)
-            mean_err = (pred_dr - dr_true).abs().mean().item()
+            # denormalize the whole‐batch predictions
+            pred_all = normalizer.denorm(pred_dr_n)   # (N_total, 3)
+            dr_all   = dr_true                         # (N_total, 3)
+
+            # split into per‐crystal chunks
+            sizes    = [len(idx_map) for idx_map in crystal_atom_idx]
+            pred_list = pred_all.split(sizes, dim=0)   # list of (n_i,3)
+            dr_list   = dr_all.split(sizes, dim=0)     # list of (n_i,3)
+
+            # compute each crystal’s ⟨|change in r_pred – change in r_true|⟩
+            errs = [(p - d).abs().mean() for p, d in zip(pred_list, dr_list)]
+            mean_err = torch.stack(errs).mean().item()
+            batch_mae = (pred_all - dr_true).abs().mean().item()
+        
+        mae_meter.update(batch_mae, dr_true.size(0))
+
 
         if i % args.print_freq == 0:
             print(f"Epoch {epoch} | Iter {i}: "
                   f"train loss={loss.item():.4f}, "
                   f"⟨|Δr|⟩={mean_err:.3f} Å")
+            
+        return train_meter.avg, mae_meter.avg
+
 
 
 def validate(val_loader, model, criterion, normalizer: Normalizer, device, test=False):
     batch_time = AverageMeter()
-    losses     = AverageMeter()
     m3g_errors = AverageMeter()
+    mae_errors = AverageMeter()
 
     # If we're in a “test” run, collect predictions/ids for csv
     if test:
@@ -308,17 +363,18 @@ def validate(val_loader, model, criterion, normalizer: Normalizer, device, test=
             # normalize target displacement
             dr_true_n = normalizer.norm(dr_true)
 
-            # forward + loss
+            # forward + MSE loss
             pred_n = model(atom_fea, nbr_fea, nbr_idx)
             loss   = criterion(pred_n, dr_true_n)
 
-            # record loss
-            losses.update(loss.item(), dr_true.size(0))
+            # record MSE loss
+            m3g_errors.update(loss.item(), dr_true.size(0))
 
-            # denormalize for m3g loss
+            # denormalize for MAE
             pred = normalizer.denorm(pred_n)
             m3g  = (pred - dr_true).abs().mean().item()
-            m3g_errors.update(M3gnetLoss(), dr_true.size(0)) # TODO: Hope this works
+            # record MAE per atom, not MatGLLoss instance
+            mae_errors.update(m3g, dr_true.size(0))
 
             # if in test mode, stash for CSV
             if test:
@@ -334,7 +390,7 @@ def validate(val_loader, model, criterion, normalizer: Normalizer, device, test=
             if i % args.print_freq == 0:
                 print(f'Val: [{i}/{len(val_loader)}]  '
                       f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})  '
-                      f'Loss {losses.val:.4f} ({losses.avg:.4f})  '
+                      f'Loss {m3g_errors.val:.4f} ({m3g_errors.avg:.4f})  '
                       f'M3g Error {m3g_errors.val:.3f} ({m3g_errors.avg:.3f})')
 
     # if test, dump CSV
@@ -349,7 +405,9 @@ def validate(val_loader, model, criterion, normalizer: Normalizer, device, test=
     # Final Summary
     star = '**' if test else '*'
     print(f' {star} M3g Error Avg {m3g_errors.avg:.3f}')
-    return m3g_errors.avg
+    print(f'{star}  Val MAE Avg = {mae_errors.avg:.4f} Å')
+    return m3g_errors.avg, mae_errors.avg
+
 
 
 

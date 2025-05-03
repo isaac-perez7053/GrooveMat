@@ -58,28 +58,48 @@ class ConvLayer(nn.Module):
           Atom hidden features after convolution
 
         """
-        # Pull out each of the atom's M neighbor-features, yeilding an (N, M, A) tensor
-        N, M = nbr_fea_idx.shape
 
-        # Grab the neighboring atom's features
-        atom_nbr_fea = atom_in_fea[nbr_fea_idx, :]
+        
+
+    def forward(self, atom_in_fea, nbr_fea, nbr_fea_idx):
+
+        # atom_in_fea: (N, A)
+        # nbr_fea_idx: (N, M)
+        N, M = nbr_fea_idx.shape
+        A = self.atom_fea_len
+        B = self.nbr_fea_len
+
+        # Gather neighbor atom features 
+        flat_idx     = nbr_fea_idx.view(-1)              # (N*M,)
+
+        assert flat_idx.max().item() < N, (
+           f"Found neighbor index {flat_idx.max().item()} ≥ number of atoms {N}"
+        )
+
+        nbr_feats_flat = atom_in_fea[flat_idx]           # (N*M, A)
+        atom_nbr_fea = nbr_feats_flat.view(N, M, A)      # (N, M, A)
+
+        # Expand central atom feats
+        atom_central = atom_in_fea[:N]
+        atom_central = atom_central.unsqueeze(1)
+        atom_central = atom_central.expand(N, M, A)
 
         # Concatenate central, neighbor, and bond features (atom-atom-edge)
         total_nbr_fea = torch.cat([
-        atom_in_fea.unsqueeze(1).expand(N, M, self.atom_fea_len),  # central feats repeated (N, M, A)
-        atom_nbr_fea,                                              # neighbor feats       (N, M, A)
-        nbr_fea                                                    # bond feats           (N, M, B)
-        ], dim=2)                                                  # → (N, M, 2A + B)
+        atom_central, 
+        atom_nbr_fea,                                             
+        nbr_fea                                                 
+        ], dim=2)                                                  
         
         # Pass through Linear nn
         total_gated_fea = self.fc_full(total_nbr_fea) # (N, M, 2A)
 
         # Normalize results. bn expects a 2D tensor. Flatten then reshape
         total_gated_fea = self.bn1(total_gated_fea.view(
-            -1, self.atom_fea_len*2)).view(N, M, self.atom_fea_len*2)
+            -1, A*2)).view(N, M, A*2)
         
         # Split into filter and core
-        nbr_filter, nbr_core = total_gated_fea.chuck(2, dim=2)
+        nbr_filter, nbr_core = total_gated_fea.chunk(2, dim=2)
         
         # Pass gate and core through sigmoid and softplus respectively
         nbr_filter = self.sigmoid(nbr_filter)
@@ -92,7 +112,7 @@ class ConvLayer(nn.Module):
         nbr_sumed = self.bn2(nbr_sumed)
 
         # Residual add + activation 
-        out = self.softplus2(atom_in_fea + nbr_sumed) # (N, A)
+        out = self.softplus2(atom_central[:,0,:] + nbr_sumed) # (N, A)
 
         return out
         
