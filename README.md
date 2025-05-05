@@ -24,10 +24,14 @@ disco --help
 
 Below is a table containing some of the results gathered from the program.
 
-| Material     |Crystal Structure | Mean Error     |
-| :---        |    :----:   |          ---: |
-| Header      | Title       | Here's this   |
-| Paragraph   | Text        | And more      |
+| CIF ID     | Mean Error (Å) | Max Error (Å) |
+| :---------- | :--------------: | -------------: |
+| Nd1 In1 O3 | 0.0100         | 0.0126        |
+| Np1 Be1 O3 | 0.0086         | 0.0107        |
+| Mn3 Au1 N1 | 0.0088         | 0.0118        |
+| Na1 Li1 O3 | 0.0102         | 0.0136        |
+| La1 Cr1 O3 | 0.0093         | 0.0148        |
+
 
 # Download
 
