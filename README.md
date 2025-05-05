@@ -14,9 +14,18 @@ To download disco, use the command below
 pip install disco
 ```
 
-To get an overview of the commands, runn the following command
+To get an overview of the commands, run the following command
 
 ```
 disco --help
 ```
+
+## Results
+
+Below is a table containing some of the results gathered from the program.
+
+| Material     |Crystal Structure | Mean Error     |
+| :---        |    :----:   |          ---: |
+| Header      | Title       | Here's this   |
+| Paragraph   | Text        | And more      |
 
