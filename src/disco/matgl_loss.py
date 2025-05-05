@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
+import numpy as np
 
 import matgl
 from matgl.ext.ase import PESCalculator
@@ -17,50 +18,52 @@ class MatGLLoss(nn.Module):
         # adaptor to convert pymatgen to ASE
         self.adaptor = AseAtomsAdaptor()
 
-    def predict_force_energy(self, x_flat: torch.Tensor, structure: Structure):
+    def predict_force_energy(self, pos_flat: torch.Tensor, structure: Structure):
         """
-        Predict forces & energy on a displaced unit cell using MatGL’s PESCalculator.
-
-        Parameters
-        ----------
-        x_flat: torch.Tensor
-          Flattened displacement vector of length 3*N
-        structure: Structure
-          The reference (relaxed) pymatgen structure
-
-        Returns
-        -------
-        F_torch: torch.Tensor, shape (3*N,)
-        E_torch: torch.Tensor, scalar
+        Given a flat tensor of displacements (shape 3N) and a pymatgen Structure,
+        build an ASE Atoms at coords = structure.cart_coords + displacement,
+        attach the PESCalculator, and return forces (flat 3N) and energy.
         """
-        # reshape & detach
-        disp = x_flat.detach().cpu().numpy().reshape(-1, 3)  # (N,3)
-        new_coords = structure.cart_coords + disp
+        # 1) reshape pos_flat → (N, 3) numpy array
+        disp = pos_flat.detach().cpu().numpy().reshape(-1, 3)
 
-        # build shifted pymatgen structure
-        shifted = Structure(
-            structure.lattice,
-            structure.species,
-            new_coords,
-            coords_are_cartesian=True
-        )
+        # 2) get the base (perturbed) coords from the Structure
+        base_coords = np.array(structure.cart_coords)      # shape (N,3)
 
-        # convert to ASE Atoms and attach MatGL PESCalculator
-        atoms = self.adaptor.get_atoms(shifted)
-        atoms.set_calculator(PESCalculator(potential=self.pot))
+        # 3) compute the new absolute coords
+        coords = base_coords + disp                        # shape (N,3)
 
-        # single‑point evaluation
-        E = atoms.get_potential_energy()  # eV
-        F = atoms.get_forces().reshape(-1) # flattened to (3*N,)
+        # 4) build ASE Atoms from the pymatgen Structure
+        atoms = AseAtomsAdaptor.get_atoms(structure)
 
-        # back to torch
-        device = x_flat.device
-        E_torch = torch.tensor(E, dtype=torch.float32, device=device)
-        F_torch = torch.tensor(F, dtype=torch.float32, device=device)
+        # 5) update the ASE Atoms’ positions to your new coords
+        atoms.positions = coords
 
-        return F_torch, E_torch
+        # 6) attach the calculator correctly
+        calc = PESCalculator(potential=self.pot)
+        atoms.calc = calc
 
-    def forward(self, input: torch.Tensor, target: Structure, classifier) -> torch.Tensor:
+        # 7) evaluate forces & energy
+        forces = atoms.get_forces().astype(np.float32).reshape(-1)
+        energy = float(atoms.get_potential_energy())
+
+        # 8) convert back to torch
+        f_tensor = torch.as_tensor(forces, dtype=torch.float32, device=pos_flat.device)
+        e_tensor = torch.as_tensor(energy, dtype=torch.float32, device=pos_flat.device)
+        return f_tensor, e_tensor
+    
+    def compute_fd_hessian(self, force_fn, disp0, eps=1e-3):
+      n = disp0.numel()
+      H = torch.zeros(n, n, device=disp0.device)
+      for j in range(n):
+          e = torch.zeros_like(disp0); e[j] = eps
+          f_plus, _  = force_fn(disp0 + e)
+          f_minus, _ = force_fn(disp0 - e)
+          H[:, j] = (f_plus - f_minus) / (2*eps)
+      return H
+
+
+    def forward(self, input: torch.Tensor, structure: Structure, classifier) -> torch.Tensor:
         """
         Compute loss between predicted displacements and the “true” displacement
 
@@ -68,8 +71,8 @@ class MatGLLoss(nn.Module):
         ----------
         input: torch.Tensor, shape (3*N,)
           The predicted displacement vector
-        target: Structure
-          The relaxed pymatgen structure
+        structure: Structure
+          The perturbed pymatgen structure used to compute forces and Hessian
         classifier: Callable
           A loss function, e.g. nn.MSELoss()
 
@@ -77,33 +80,42 @@ class MatGLLoss(nn.Module):
         -------
         loss: torch.Tensor
         """
-        # build reference coords with grad
-        pos0 = torch.tensor(
-            target.cart_coords,
-            dtype=torch.float32,
-            device=input.device,
-            requires_grad=True
-        ).view(-1)  # (3*N,)
+        # build zero‐displacement vector with grad
+        disp0 = torch.zeros_like(input, device=input.device,
+                                requires_grad=True)  # (3*N,)
 
-        # get forces & energy at pos0
-        f0, e0 = self.predict_force_energy(pos0, target)
+        # get forces & energy at the perturbed geometry (disp0 = 0 → new_coords = structure.cart_coords)
+        f0, e0 = self.predict_force_energy(disp0, structure)
 
-        # energy-only function for Hessian
-        energy_fn = lambda y: self.predict_force_energy(y, target)[1]
+        # Hessian in displacement space
+        H = self.compute_fd_hessian(lambda d: self.predict_force_energy(d, structure), disp0)
 
-        # Hessian at reference
-        H: torch.Tensor = torch.autograd.functional.hessian(energy_fn, pos0)
+        # Ideally we are able to run this 
+        # H  = torch.autograd.functional.hessian(lambda d: self.predict_force_energy(d, structure), disp0)
 
-        # invert with ridge
-        ridge = 1e-6 * torch.eye(H.size(0), device=H.device)
-        H_inv: torch.Tensor = torch.linalg.inv(H + ridge)
+        # regularize & solve for δx: (H + λI) δx = –F₀
+        diag_mean = H.diagonal().abs().mean()
+        ridge_val = 1e-1 * diag_mean
+        ridge     = ridge_val * torch.eye(H.size(0), device=H.device)
+        H_reg     = H + ridge
 
-        # r = −H^{-1} * f
-        delta_x = -H_inv.matmul(f0)
+        try:
+            delta_x = torch.linalg.solve(H_reg, -f0)
+        except RuntimeError:
+            # fallback to least‑squares if still singular
+            sol     = torch.linalg.lstsq(H_reg, (-f0).unsqueeze(-1))
+            delta_x = sol.solution.squeeze(-1)
+
+        # reshape to match network’s output
         actual_disp = delta_x.view_as(input)
 
         print("Step norm:", actual_disp.norm().item())
         return classifier(input, actual_disp)
+
+
+
+
+
 
 
 # usage

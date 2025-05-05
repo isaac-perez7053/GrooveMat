@@ -13,6 +13,7 @@ from sklearn import metrics
 from torch.optim.lr_scheduler import MultiStepLR
 import torch.nn as nn
 import matplotlib.pyplot as plt
+from pymatgen.core import Structure
 
 from disco.data import CIFData
 from disco.data import collate_pool, get_train_val_test_loader
@@ -285,15 +286,35 @@ def train(normalizer: Normalizer,
         # forward over the full batch → (N_total, 3)
         pred_dr_n = model(atom_fea, nbr_fea, nbr_idx)
 
+        # split the true Δr into per‑crystal chunks
+        sizes    = [len(idx_map) for idx_map in crystal_atom_idx]
+        dr_list  = dr_true.split(sizes, dim=0)   # list of (n_i,3)
+
         # accumulate MatGL loss per crystal
         total_loss = 0.0
-        for idx_map, struct_relaxed in zip(crystal_atom_idx, batch_struct):
+        for idx_map, struct_relaxed, dr_i in zip(crystal_atom_idx, batch_struct, dr_list):
             # extract this crystal’s atom predictions
             pred_i = pred_dr_n[idx_map]            # (n_i, 3)
             x_flat = pred_i.view(-1)               # (3*n_i,)
 
-            # use the perturbed Structure returned by collate_pool
-            total_loss += loss_fn(x_flat, struct_relaxed, classifier=criterion)
+            # reconstruct the initial (perturbed) coords:
+            #   r_initial = r_relaxed - Δr_true
+            coords_relaxed = np.array(struct_relaxed.cart_coords)
+            delta_np       = dr_i.cpu().numpy()              # (n_i,3)
+            coords_initial = coords_relaxed - delta_np
+
+            # build a new Structure at the perturbed geometry
+            struct_initial = Structure(
+                struct_relaxed.lattice,
+                struct_relaxed.species,
+                coords_initial,
+                coords_are_cartesian=True
+            )
+
+
+            # use the perturbed Structure for the loss
+            total_loss += loss_fn(x_flat, struct_initial,
+                                  classifier=criterion)
 
         # average over the batch
         loss = total_loss / len(batch_struct)
@@ -305,33 +326,30 @@ def train(normalizer: Normalizer,
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
-
-
-
         with torch.no_grad():
-            # denormalize the whole‐batch predictions
+            # denormalize the whole‑batch predictions
             pred_all = normalizer.denorm(pred_dr_n)   # (N_total, 3)
-            dr_all   = dr_true                         # (N_total, 3)
+            dr_all   = dr_true                        # (N_total, 3)
 
-            # split into per‐crystal chunks
-            sizes    = [len(idx_map) for idx_map in crystal_atom_idx]
+            # split into per‑crystal chunks
+            sizes     = [len(idx_map) for idx_map in crystal_atom_idx]
             pred_list = pred_all.split(sizes, dim=0)   # list of (n_i,3)
             dr_list   = dr_all.split(sizes, dim=0)     # list of (n_i,3)
 
             # compute each crystal’s ⟨|change in r_pred – change in r_true|⟩
-            errs = [(p - d).abs().mean() for p, d in zip(pred_list, dr_list)]
+            errs     = [(p - d).abs().mean() for p, d in zip(pred_list, dr_list)]
             mean_err = torch.stack(errs).mean().item()
             batch_mae = (pred_all - dr_true).abs().mean().item()
-        
-        mae_meter.update(batch_mae, dr_true.size(0))
 
+        mae_meter.update(batch_mae, dr_true.size(0))
 
         if i % args.print_freq == 0:
             print(f"Epoch {epoch} | Iter {i}: "
                   f"train loss={loss.item():.4f}, "
                   f"⟨|Δr|⟩={mean_err:.3f} Å")
-            
-        return train_meter.avg, mae_meter.avg
+
+    return train_meter.avg, mae_meter.avg
+
 
 
 
