@@ -14,3 +14,9 @@ To download disco, use the command below
 pip install disco
 ```
 
+To get an overview of the commands, runn the following command
+
+```
+disco --help
+```
+
