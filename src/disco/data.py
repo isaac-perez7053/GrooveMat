@@ -73,7 +73,7 @@ def get_train_val_test_loader(
             pin_memory=pin_memory,
         )
         return train_loader, val_loader, test_loader
-    return train_loader, val_loader
+    return train_loader, val_loader, None
 
 
 def collate_pool(dataset_list):
