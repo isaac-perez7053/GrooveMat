@@ -7,10 +7,12 @@ import numpy as np
 import matgl
 from matgl.ext.ase import PESCalculator
 
+
 class MatGLLoss(nn.Module):
     """
     Uses MatGL’s pre‑trained PES model to compute forces & energy for a displaced cell.
     """
+
     def __init__(self, model_name: str = "M3GNet-MP-2021.2.8-PES"):
         super().__init__()
         # load the MatGL PES model
@@ -28,10 +30,10 @@ class MatGLLoss(nn.Module):
         disp = pos_flat.detach().cpu().numpy().reshape(-1, 3)
 
         # 2) get the base (perturbed) coords from the Structure
-        base_coords = np.array(structure.cart_coords)      # shape (N,3)
+        base_coords = np.array(structure.cart_coords)  # shape (N,3)
 
         # 3) compute the new absolute coords
-        coords = base_coords + disp                        # shape (N,3)
+        coords = base_coords + disp  # shape (N,3)
 
         # 4) build ASE Atoms from the pymatgen Structure
         atoms = AseAtomsAdaptor.get_atoms(structure)
@@ -51,19 +53,24 @@ class MatGLLoss(nn.Module):
         f_tensor = torch.as_tensor(forces, dtype=torch.float32, device=pos_flat.device)
         e_tensor = torch.as_tensor(energy, dtype=torch.float32, device=pos_flat.device)
         return f_tensor, e_tensor
-    
+
     def compute_fd_hessian(self, force_fn, disp0, eps=1e-3):
-      n = disp0.numel()
-      H = torch.zeros(n, n, device=disp0.device)
-      for j in range(n):
-          e = torch.zeros_like(disp0); e[j] = eps
-          f_plus, _  = force_fn(disp0 + e)
-          f_minus, _ = force_fn(disp0 - e)
-          H[:, j] = (f_plus - f_minus) / (2*eps)
-      return H
+        """
+        Placeholder while we figure out how to use torch's native hessian function
+        """
+        n = disp0.numel()
+        H = torch.zeros(n, n, device=disp0.device)
+        for j in range(n):
+            e = torch.zeros_like(disp0)
+            e[j] = eps
+            f_plus, _ = force_fn(disp0 + e)
+            f_minus, _ = force_fn(disp0 - e)
+            H[:, j] = (f_plus - f_minus) / (2 * eps)
+        return H
 
-
-    def forward(self, input: torch.Tensor, structure: Structure, classifier) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, structure: Structure, classifier
+    ) -> torch.Tensor:
         """
         Compute loss between predicted displacements and the “true” displacement
 
@@ -81,29 +88,32 @@ class MatGLLoss(nn.Module):
         loss: torch.Tensor
         """
         # build zero‐displacement vector with grad
-        disp0 = torch.zeros_like(input, device=input.device,
-                                requires_grad=True)  # (3*N,)
+        disp0 = torch.zeros_like(
+            input, device=input.device, requires_grad=True
+        )  # (3*N,)
 
         # get forces & energy at the perturbed geometry (disp0 = 0 → new_coords = structure.cart_coords)
         f0, e0 = self.predict_force_energy(disp0, structure)
 
         # Hessian in displacement space
-        H = self.compute_fd_hessian(lambda d: self.predict_force_energy(d, structure), disp0)
+        H = self.compute_fd_hessian(
+            lambda d: self.predict_force_energy(d, structure), disp0
+        )
 
-        # Ideally we are able to run this 
+        # Ideally we are able to run this
         # H  = torch.autograd.functional.hessian(lambda d: self.predict_force_energy(d, structure), disp0)
 
         # regularize & solve for δx: (H + λI) δx = –F₀
         diag_mean = H.diagonal().abs().mean()
         ridge_val = 1e-1 * diag_mean
-        ridge     = ridge_val * torch.eye(H.size(0), device=H.device)
-        H_reg     = H + ridge
+        ridge = ridge_val * torch.eye(H.size(0), device=H.device)
+        H_reg = H + ridge
 
         try:
             delta_x = torch.linalg.solve(H_reg, -f0)
         except RuntimeError:
             # fallback to least‑squares if still singular
-            sol     = torch.linalg.lstsq(H_reg, (-f0).unsqueeze(-1))
+            sol = torch.linalg.lstsq(H_reg, (-f0).unsqueeze(-1))
             delta_x = sol.solution.squeeze(-1)
 
         # reshape to match network’s output
@@ -111,13 +121,3 @@ class MatGLLoss(nn.Module):
 
         print("Step norm:", actual_disp.norm().item())
         return classifier(input, actual_disp)
-
-
-
-
-
-
-
-# usage
-# criterion = MatGLLoss()
-# loss = criterion(predict_r, structure) 

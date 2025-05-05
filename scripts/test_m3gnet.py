@@ -21,15 +21,19 @@ mo = Structure(
 #    Here we use the universal M3GNet interatomic potential.
 #    You can list all available PES models via:
 #      matgl.get_available_pretrained_models()
-pot = matgl.load_model("M3GNet-MP-2021.2.8-PES")  # :contentReference[oaicite:0]{index=0}
+pot = matgl.load_model(
+    "M3GNet-MP-2021.2.8-PES"
+)  # :contentReference[oaicite:0]{index=0}
 
 # 3) Relaxation via ASE interface
 relaxer = Relaxer(potential=pot)
-relax_results = relaxer.relax(mo, fmax=0.01, verbose=True)  # :contentReference[oaicite:1]{index=1}
+relax_results = relaxer.relax(
+    mo, fmax=0.01, verbose=True
+)  # :contentReference[oaicite:1]{index=1}
 
 final_struct = relax_results["final_structure"]
 E_traj = relax_results["trajectory"].energies  # list of total energies along the path
-E_relaxed = E_traj[-1] / len(final_struct)     # per‑atom
+E_relaxed = E_traj[-1] / len(final_struct)  # per‑atom
 
 print(f"Relaxed lattice parameter: {final_struct.lattice.abc[0]:.3f} Å")
 print(f"Final energy: {E_relaxed:.3f} eV/atom")
@@ -44,7 +48,7 @@ atoms.set_calculator(PESCalculator(potential=pot))
 
 #    Query ASE
 E_ase = atoms.get_potential_energy()  # total energy, eV
-F_ase = atoms.get_forces()            # (N,3) array, eV/Å
+F_ase = atoms.get_forces()  # (N,3) array, eV/Å
 
 print(f"ASE single‑point energy: {E_ase:.3f} eV")
 print(f"ASE forces shape: {F_ase.shape}")
@@ -56,5 +60,3 @@ forces_t = torch.tensor(F_ase, dtype=torch.float32, device=pos0.device)
 
 print("Torch energy tensor:", energy_t)
 print("Torch forces tensor:", forces_t.shape)
-
-

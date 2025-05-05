@@ -8,7 +8,7 @@ parser.add_argument("--n", type=int, help="Number of structures to fetch")
 args = parser.parse_args()
 
 # Configuration
-API_KEY = "jqiPpuSEWUeahM0ZyBKtX7jT7HYKxSEs" # Materials Project API key
+API_KEY = "jqiPpuSEWUeahM0ZyBKtX7jT7HYKxSEs"  # Materials Project API key
 OUTPUT_DIR = "data"
 STRUCTURE_DIR = os.path.join(OUTPUT_DIR, "structures")
 CSV_PATH = os.path.join(OUTPUT_DIR, "id_prop.csv")
@@ -25,10 +25,12 @@ search_kwargs = dict(
 )
 
 if num_samples:
-    search_kwargs.update({
-        "chunk_size": num_samples,
-        "num_chunks": 1,
-    })
+    search_kwargs.update(
+        {
+            "chunk_size": num_samples,
+            "num_chunks": 1,
+        }
+    )
 
 # Make directories
 os.makedirs(STRUCTURE_DIR, exist_ok=True)
