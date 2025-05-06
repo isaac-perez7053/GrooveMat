@@ -1,4 +1,4 @@
-# Disco
+# GrooveMat
 
 Get your atoms moving!
 
@@ -11,13 +11,13 @@ This software package uses the Crystal Graph Convolutional Neural Networks (CGCN
 To download disco, use the command below
 
 ```
-pip install disco
+pip install groovemat
 ```
 
 To get an overview of the commands, run the following command
 
 ```
-disco --help
+groovemat --help
 ```
 
 ## Results
@@ -37,6 +37,6 @@ Below is a table containing some of the results gathered from the program.
 # Download
 
 ```
-pip install disco
+pip install groovemat
 ```
 
