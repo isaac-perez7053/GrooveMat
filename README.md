@@ -40,3 +40,15 @@ Below is a table containing some of the results gathered from the program.
 pip install groovemat
 ```
 
+# Note
+
+It is necessary to have a API key for The Materials Project database in order to generate data. To apply the key:
+ - In Windows:
+```
+$env:MP_API_KEY="insert_API_key_here"
+```
+
+ - In MacOS / Linux
+ ```
+ export MP_API_KEY="insert_API_key_here"
+ ```

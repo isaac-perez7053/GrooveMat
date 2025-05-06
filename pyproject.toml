@@ -25,6 +25,7 @@ dependencies = [
     "matplotlib>=3.5",
     "matgl",
     "scikit-learn>=1.0",
+    "mp_api>=0.20.0",
 ]
 
 [project.scripts]
