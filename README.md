@@ -8,7 +8,7 @@ This software package uses the Crystal Graph Convolutional Neural Networks (CGCN
 
 ## Download
 
-To download disco, use the command below
+To download groovemat, use the command below
 
 ```
 pip install groovemat

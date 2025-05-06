@@ -20,6 +20,8 @@ venv/
 *.bak
 *.cif
 id_prop.csv
+*.egg-info/
+dist/
 
 # Ignore the config file for API key
 config.toml 
