@@ -1,6 +1,6 @@
 [project]
 name = "groovemat"
-version = "0.9.11"
+version = "0.9.2"
 description = "move your atoms into place!"
 readme = "README.md"
 requires-python = ">=3.8"
