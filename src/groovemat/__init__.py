@@ -1,12 +1,12 @@
-from disco.cli import cli, train, predict
-from disco.data import (
+from groovemat.cli import cli, train, predict
+from groovemat.data import (
     AtomCustomJSONInitializer,
     AtomInitializer,
     GaussianDistance,
     CIFData,
 )
-from disco.model import CrystalGraphConvNet, ConvLayer
-from disco.matgl_loss import MatGLLoss
+from groovemat.model import CrystalGraphConvNet, ConvLayer
+from groovemat.matgl_loss import MatGLLoss
 
 __all__ = [
     "cli",

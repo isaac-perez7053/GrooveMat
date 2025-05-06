@@ -1,2 +1,2 @@
 [console_scripts]
-disco = disco.__main__:main
+groovemat = groovemat.__main__:main

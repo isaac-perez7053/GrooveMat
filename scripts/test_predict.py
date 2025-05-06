@@ -7,9 +7,9 @@ import torch
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-from disco.data import CIFData, collate_pool
-from disco.model import ConvergenceRegressor
-from disco.utils.normalizer import Normalizer
+from groovemat.data import CIFData, collate_pool
+from groovemat.model import ConvergenceRegressor
+from groovemat.utils.normalizer import Normalizer
 
 def load_model(checkpoint_path, device, sample_item):
     # sample_item is ((atom_fea, nbr_fea, nbr_idx), dr_true, struct_relaxed)

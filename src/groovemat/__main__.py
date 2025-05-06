@@ -1,4 +1,4 @@
-from disco.cli import cli  # Adjust the import path as needed
+from groovemat.cli import cli  # Adjust the import path as needed
 
 
 def main():

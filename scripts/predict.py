@@ -11,9 +11,9 @@ from sklearn import metrics
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from disco.data import CIFData
-from disco.data import collate_pool
-from disco.model import CrystalGraphConvNet
+from groovemat.data import CIFData
+from groovemat.data import collate_pool
+from groovemat.model import CrystalGraphConvNet
 
 parser = argparse.ArgumentParser(description="Crystal gated neural networks")
 parser.add_argument("modelpath", help="path to the trained model.")

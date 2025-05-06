@@ -1,8 +1,8 @@
 Metadata-Version: 2.4
 Name: groovemat
-Version: 0.9.0
+Version: 0.9.11
 Summary: move your atoms into place!
-Home-page: https://github.com/isaac-perez7053/disco
+Home-page: https://github.com/isaac-perez7053/groovemat
 Author: Isaac Perez; Thomas Wing
 Author-email: Isaac Perez <iperez@g.hmc.edu>
 Classifier: Development Status :: 4 - Beta
@@ -25,7 +25,7 @@ Provides-Extra: dev
 Requires-Dist: black>=22.3; extra == "dev"
 Dynamic: license-file
 
-# Disco
+# GrooveMat
 
 Get your atoms moving!
 
@@ -38,13 +38,13 @@ This software package uses the Crystal Graph Convolutional Neural Networks (CGCN
 To download disco, use the command below
 
 ```
-pip install disco
+pip install groovemat
 ```
 
 To get an overview of the commands, run the following command
 
 ```
-disco --help
+groovemat --help
 ```
 
 ## Results
@@ -64,6 +64,6 @@ Below is a table containing some of the results gathered from the program.
 # Download
 
 ```
-pip install disco
+pip install groovemat
 ```
 

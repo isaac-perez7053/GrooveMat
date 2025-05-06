@@ -1,4 +1,3 @@
-import argparse
 import os
 import shutil
 import sys
@@ -16,19 +15,19 @@ import matplotlib.pyplot as plt
 from pymatgen.core import Structure
 import click
 
-from disco.data import CIFData
-from disco.data import collate_pool, get_train_val_test_loader
-from disco.model import ConvergenceRegressor
-from disco.matgl_loss import MatGLLoss
-from disco.utils.normalizer import Normalizer
+from groovemat.data import CIFData
+from groovemat.data import collate_pool, get_train_val_test_loader
+from groovemat.model import ConvergenceRegressor
+from groovemat.matgl_loss import MatGLLoss
+from groovemat.utils.normalizer import Normalizer
 
 BANNER = r"""
 +----------------------------------------------------------+
-|                 ____  _                                  |
-|                |  _ \(_)___  ___ ___                     |
-|                | | | | / __|/ __/ _ \                    |
-|                | |_| | \__ \ (_| (_) |                   |
-|                |____/|_|___/\___\___/                    |
+|      ____                          __  __       _        |
+|     / ___|_ __ ___   _____   _____|  \/  | __ _| |_      |
+|    | |  _| '__/ _ \ / _ \ \ / / _ \ |\/| |/ _` | __|     |
+|    | |_| | | | (_) | (_) \ V /  __/ |  | | (_| | |_      |
+|     \____|_|  \___/ \___/ \_/ \___|_|  |_|\__,_|\__|     |
 |                                                          |
 |                Get those atoms moving!                   |
 +----------------------------------------------------------+
@@ -46,7 +45,7 @@ class CustomGroup(click.Group):
 @click.pass_context
 def cli(ctx):
     """
-    Disco command‑line interface.
+    GrooveMat command‑line interface.
     """
     if ctx.invoked_subcommand is None:
         click.echo(cli.get_help(ctx))
@@ -294,7 +293,7 @@ def train(
     perturb_std,
 ):
     """
-    Train the disco model
+    Train the GrooveMat model
     """
 
     class Args:

@@ -1,6 +1,6 @@
 [project]
 name = "groovemat"
-version = "0.9.0"
+version = "0.9.11"
 description = "move your atoms into place!"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.scripts]
-disco = "disco.__main__:main"
+groovemat = "groovemat.__main__:main"
 
 [project.optional-dependencies]
 dev = [
