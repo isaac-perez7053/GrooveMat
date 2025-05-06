@@ -20,3 +20,6 @@ venv/
 *.bak
 *.cif
 id_prop.csv
+
+# Ignore the config file for API key
+config.toml 

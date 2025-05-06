@@ -57,11 +57,12 @@ else:
 
 args.cuda = not args.disable_cuda and torch.cuda.is_available()
 
-if model_args.task == "regression":
-    best_mae_error = 1e10
-else:
-    best_mae_error = 0.0
-
+best_mae_error = 1e10
+# if model_args.task == "regression":
+#     best_mae_error = 1e10
+# else:
+#     best_mae_error = 0.0
+    
 
 def main():
     global args, model_args, best_mae_error
@@ -89,16 +90,16 @@ def main():
         n_conv=model_args.n_conv,
         h_fea_len=model_args.h_fea_len,
         n_h=model_args.n_h,
-        classification=True if model_args.task == "classification" else False,
+        # classification=False,
     )
     if args.cuda:
         model.cuda()
 
-    # define loss func and optimizer
-    if model_args.task == "classification":
-        criterion = nn.NLLLoss()
-    else:
-        criterion = nn.MSELoss()
+    # # define loss func and optimizer
+    # if model_args.task == "classification":
+    #     criterion = nn.NLLLoss()
+    # else:
+    criterion = nn.MSELoss()
     # if args.optim == 'SGD':
     #     optimizer = optim.SGD(model.parameters(), args.lr,
     #                           momentum=args.momentum,
@@ -117,6 +118,9 @@ def main():
         checkpoint = torch.load(
             args.modelpath, map_location=lambda storage, loc: storage
         )
+        print(format(args.modelpath))
+
+        # print(checkpoint["state_dict"])
         model.load_state_dict(checkpoint["state_dict"])
         normalizer.load_state_dict(checkpoint["normalizer"])
         print(
@@ -133,14 +137,15 @@ def main():
 def validate(val_loader, model, criterion, normalizer, test=False):
     batch_time = AverageMeter()
     losses = AverageMeter()
-    if model_args.task == "regression":
-        mae_errors = AverageMeter()
-    else:
-        accuracies = AverageMeter()
-        precisions = AverageMeter()
-        recalls = AverageMeter()
-        fscores = AverageMeter()
-        auc_scores = AverageMeter()
+    mae_errors = AverageMeter()
+    # if model_args.task == "regression":
+        
+    # else:
+    #     accuracies = AverageMeter()
+    #     precisions = AverageMeter()
+    #     recalls = AverageMeter()
+    #     fscores = AverageMeter()
+    #     auc_scores = AverageMeter()
     if test:
         test_targets = []
         test_preds = []
@@ -161,10 +166,12 @@ def validate(val_loader, model, criterion, normalizer, test=False):
                 )
             else:
                 input_var = (Variable(input[0]), Variable(input[1]), input[2], input[3])
-        if model_args.task == "regression":
-            target_normed = normalizer.norm(target)
-        else:
-            target_normed = target.view(-1).long()
+        
+        target_normed = normalizer.norm(target)
+        # if model_args.task == "regression":
+        #     target_normed = normalizer.norm(target)
+        # else:
+        #     target_normed = target.view(-1).long()
         with torch.no_grad():
             if args.cuda:
                 target_var = Variable(target_normed.cuda(non_blocking=True))
@@ -176,73 +183,94 @@ def validate(val_loader, model, criterion, normalizer, test=False):
         loss = criterion(output, target_var)
 
         # measure accuracy and record loss
-        if model_args.task == "regression":
-            mae_error = mae(normalizer.denorm(output.data.cpu()), target)
-            losses.update(loss.data.cpu().item(), target.size(0))
-            mae_errors.update(mae_error, target.size(0))
-            if test:
-                test_pred = normalizer.denorm(output.data.cpu())
-                test_target = target
-                test_preds += test_pred.view(-1).tolist()
-                test_targets += test_target.view(-1).tolist()
-                test_cif_ids += batch_cif_ids
-        else:
-            accuracy, precision, recall, fscore, auc_score = class_eval(
-                output.data.cpu(), target
-            )
-            losses.update(loss.data.cpu().item(), target.size(0))
-            accuracies.update(accuracy, target.size(0))
-            precisions.update(precision, target.size(0))
-            recalls.update(recall, target.size(0))
-            fscores.update(fscore, target.size(0))
-            auc_scores.update(auc_score, target.size(0))
-            if test:
-                test_pred = torch.exp(output.data.cpu())
-                test_target = target
-                assert test_pred.shape[1] == 2
-                test_preds += test_pred[:, 1].tolist()
-                test_targets += test_target.view(-1).tolist()
-                test_cif_ids += batch_cif_ids
+        mae_error = mae(normalizer.denorm(output.data.cpu()), target)
+        losses.update(loss.data.cpu().item(), target.size(0))
+        mae_errors.update(mae_error, target.size(0))
+        if test:
+            test_pred = normalizer.denorm(output.data.cpu())
+            test_target = target
+            test_preds += test_pred.view(-1).tolist()
+            test_targets += test_target.view(-1).tolist()
+            test_cif_ids += batch_cif_ids
+        # if model_args.task == "regression":
+        #     mae_error = mae(normalizer.denorm(output.data.cpu()), target)
+        #     losses.update(loss.data.cpu().item(), target.size(0))
+        #     mae_errors.update(mae_error, target.size(0))
+        #     if test:
+        #         test_pred = normalizer.denorm(output.data.cpu())
+        #         test_target = target
+        #         test_preds += test_pred.view(-1).tolist()
+        #         test_targets += test_target.view(-1).tolist()
+        #         test_cif_ids += batch_cif_ids
+        # else:
+        #     accuracy, precision, recall, fscore, auc_score = class_eval(
+        #         output.data.cpu(), target
+        #     )
+        #     losses.update(loss.data.cpu().item(), target.size(0))
+        #     accuracies.update(accuracy, target.size(0))
+        #     precisions.update(precision, target.size(0))
+        #     recalls.update(recall, target.size(0))
+        #     fscores.update(fscore, target.size(0))
+        #     auc_scores.update(auc_score, target.size(0))
+        #     if test:
+        #         test_pred = torch.exp(output.data.cpu())
+        #         test_target = target
+        #         assert test_pred.shape[1] == 2
+        #         test_preds += test_pred[:, 1].tolist()
+        #         test_targets += test_target.view(-1).tolist()
+        #         test_cif_ids += batch_cif_ids
 
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
 
         if i % args.print_freq == 0:
-            if model_args.task == "regression":
-                print(
-                    "Test: [{0}/{1}]\t"
-                    "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
-                    "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                    "MAE {mae_errors.val:.3f} ({mae_errors.avg:.3f})".format(
-                        i,
-                        len(val_loader),
-                        batch_time=batch_time,
-                        loss=losses,
-                        mae_errors=mae_errors,
-                    )
+            print(
+                "Test: [{0}/{1}]\t"
+                "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+                "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+                "MAE {mae_errors.val:.3f} ({mae_errors.avg:.3f})".format(
+                    i,
+                    len(val_loader),
+                    batch_time=batch_time,
+                    loss=losses,
+                    mae_errors=mae_errors,
                 )
-            else:
-                print(
-                    "Test: [{0}/{1}]\t"
-                    "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
-                    "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                    "Accu {accu.val:.3f} ({accu.avg:.3f})\t"
-                    "Precision {prec.val:.3f} ({prec.avg:.3f})\t"
-                    "Recall {recall.val:.3f} ({recall.avg:.3f})\t"
-                    "F1 {f1.val:.3f} ({f1.avg:.3f})\t"
-                    "AUC {auc.val:.3f} ({auc.avg:.3f})".format(
-                        i,
-                        len(val_loader),
-                        batch_time=batch_time,
-                        loss=losses,
-                        accu=accuracies,
-                        prec=precisions,
-                        recall=recalls,
-                        f1=fscores,
-                        auc=auc_scores,
-                    )
-                )
+            )
+            # if model_args.task == "regression":
+            #     print(
+            #         "Test: [{0}/{1}]\t"
+            #         "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+            #         "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+            #         "MAE {mae_errors.val:.3f} ({mae_errors.avg:.3f})".format(
+            #             i,
+            #             len(val_loader),
+            #             batch_time=batch_time,
+            #             loss=losses,
+            #             mae_errors=mae_errors,
+            #         )
+            #     )
+            # else:
+            #     print(
+            #         "Test: [{0}/{1}]\t"
+            #         "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+            #         "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+            #         "Accu {accu.val:.3f} ({accu.avg:.3f})\t"
+            #         "Precision {prec.val:.3f} ({prec.avg:.3f})\t"
+            #         "Recall {recall.val:.3f} ({recall.avg:.3f})\t"
+            #         "F1 {f1.val:.3f} ({f1.avg:.3f})\t"
+            #         "AUC {auc.val:.3f} ({auc.avg:.3f})".format(
+            #             i,
+            #             len(val_loader),
+            #             batch_time=batch_time,
+            #             loss=losses,
+            #             accu=accuracies,
+            #             prec=precisions,
+            #             recall=recalls,
+            #             f1=fscores,
+            #             auc=auc_scores,
+            #         )
+            #     )
 
     if test:
         star_label = "**"
@@ -254,16 +282,24 @@ def validate(val_loader, model, criterion, normalizer, test=False):
                 writer.writerow((cif_id, target, pred))
     else:
         star_label = "*"
-    if model_args.task == "regression":
-        print(
-            " {star} MAE {mae_errors.avg:.3f}".format(
-                star=star_label, mae_errors=mae_errors
-            )
+
+    print(
+        " {star} MAE {mae_errors.avg:.3f}".format(
+            star=star_label, mae_errors=mae_errors
         )
-        return mae_errors.avg
-    else:
-        print(" {star} AUC {auc.avg:.3f}".format(star=star_label, auc=auc_scores))
-        return auc_scores.avg
+    )
+    return mae_errors.avg
+
+    # if model_args.task == "regression":
+    #     print(
+    #         " {star} MAE {mae_errors.avg:.3f}".format(
+    #             star=star_label, mae_errors=mae_errors
+    #         )
+    #     )
+    #     return mae_errors.avg
+    # else:
+    #     print(" {star} AUC {auc.avg:.3f}".format(star=star_label, auc=auc_scores))
+    #     return auc_scores.avg
 
 
 class Normalizer(object):

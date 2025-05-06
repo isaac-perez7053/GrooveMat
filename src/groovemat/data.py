@@ -200,7 +200,7 @@ class CIFData(Dataset):
         return len(self.id_prop_data)
 
     def __getitem__(self, idx):
-        cif_id, _, _ = self.id_prop_data[idx]
+        cif_id, _, = self.id_prop_data[idx]
         # load original crystal
         crystal = Structure.from_file(os.path.join(self.root_dir, f"{cif_id}.cif"))
 
