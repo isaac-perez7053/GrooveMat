@@ -1,23 +1,41 @@
 Metadata-Version: 2.4
 Name: disco
-Version: 0.0.1
-Summary: Move Your Atoms into Place!
+Version: 0.9.0
+Summary: move your atoms into place!
 Home-page: https://github.com/isaac-perez7053/disco
-Author: Thomas Wing
+Author: Isaac Perez; Thomas Wing
 Author-email: Isaac Perez <iperez@g.hmc.edu>
-License: MIT
-Project-URL: Homepage, https://github.com/isaac-perez7053/disco
 Classifier: Development Status :: 4 - Beta
-Classifier: Intended Audience :: Science/Research
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Science/Research
 Classifier: Topic :: Scientific/Engineering :: Chemistry
 Classifier: Topic :: Scientific/Engineering :: Physics
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
-Requires-Dist: ase
-Requires-Dist: torch>=2.0
-Requires-Dist: torch_geometric>=2.4
-Requires-Dist: numpy
+License-File: LICENSE
+Requires-Dist: pymatgen>=2023.7.20
+Requires-Dist: numpy>=1.21
+Requires-Dist: scipy>=1.7
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: click>=8.0
+Requires-Dist: matplotlib>=3.5
+Requires-Dist: matgl
 Provides-Extra: dev
 Requires-Dist: black>=22.3; extra == "dev"
+Dynamic: license-file
+
+# Disco
+
+Get your atoms moving!
+
+## Overview
+
+This software package uses the Crystal Graph Convolutional Neural Networks (CGCNN) framework and M3gnet to create an un-supervised GNN that converges the internal degrees of freedom of a crystal lattice.
+
+# Download
+
+```
+pip install disco
+```
+
