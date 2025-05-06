@@ -23,7 +23,8 @@ dependencies = [
     "pyyaml>=6.0",
     "click>=8.0",
     "matplotlib>=3.5",
-    "matgl"
+    "matgl",
+    "scikit-learn>=1.0",
 ]
 
 [project.scripts]
