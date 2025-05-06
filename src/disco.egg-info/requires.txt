@@ -1,7 +1,0 @@
-ase
-torch>=2.0
-torch_geometric>=2.4
-numpy
-
-[dev]
-black>=22.3

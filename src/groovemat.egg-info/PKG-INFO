@@ -1,3 +1,30 @@
+Metadata-Version: 2.4
+Name: groovemat
+Version: 0.9.2
+Summary: move your atoms into place!
+Home-page: https://github.com/isaac-perez7053/groovemat
+Author: Isaac Perez; Thomas Wing
+Author-email: Isaac Perez <iperez@g.hmc.edu>
+Classifier: Development Status :: 4 - Beta
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Physics
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: pymatgen>=2023.7.20
+Requires-Dist: numpy>=1.21
+Requires-Dist: scipy>=1.7
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: click>=8.0
+Requires-Dist: matplotlib>=3.5
+Requires-Dist: matgl
+Provides-Extra: dev
+Requires-Dist: black>=22.3; extra == "dev"
+Dynamic: license-file
+
 # GrooveMat
 
 Get your atoms moving!
